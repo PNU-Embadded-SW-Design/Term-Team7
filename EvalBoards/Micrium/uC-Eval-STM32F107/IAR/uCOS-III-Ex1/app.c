@@ -24,7 +24,7 @@
 *
 * Filename      : app.c
 * Version       : V1.00
-* Programmer(s) : JJL
+* Programmer(s) : 조현준, 윤성준
                   EHS
 *********************************************************************************************************
 */
@@ -55,16 +55,31 @@ static  OS_SEM   AppSem;
 static  OS_TCB   AppTaskStartTCB; 
 static  CPU_STK  AppTaskStartStk[APP_TASK_START_STK_SIZE];
 
-static OS_TCB AppTask1_TCB;
-static OS_TCB AppTask2_TCB;
-static OS_TCB AppTask3_TCB;
-static OS_TCB AppTask4_TCB;
+static OS_TCB AppTask1_TCB;     //RFID
+static OS_TCB AppTask2_TCB;     //Proximity
+static OS_TCB AppTask3_TCB;     //Temperature
+static OS_TCB AppTask4_TCB;     //Sanitizer
+static OS_TCB AppTask5_TCB;     //Door open/close
+static OS_TCB AppTask6_TCB;     //PIR Sensor
+static OS_TCB AppTask7_TCB;     //Timer Task(20sec)
+static OS_TCB AppTask8_TCB;     //LCD Task
+
+/* 
+- priority
+    3 - T7
+    4 - T1 T2 T3 T4 T6
+    5 - T5
+    6 - T8
+*/
 
 static  CPU_STK  AppTask1_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask2_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask3_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask4_Stk[APP_TASK_START_STK_SIZE];
-
+static  CPU_STK  AppTask5_Stk[APP_TASK_START_STK_SIZE];
+static  CPU_STK  AppTask6_Stk[APP_TASK_START_STK_SIZE];
+static  CPU_STK  AppTask7_Stk[APP_TASK_START_STK_SIZE];
+static  CPU_STK  AppTask8_Stk[APP_TASK_START_STK_SIZE];
 
 /*
 *********************************************************************************************************
@@ -75,10 +90,13 @@ static  CPU_STK  AppTask4_Stk[APP_TASK_START_STK_SIZE];
 static  void  AppTaskStart  (void *p_arg);
 
 static  void  AppTask1      (void *p_arg);
-/*static  void  AppTask2      (void *p_arg);
+static  void  AppTask2      (void *p_arg);
 static  void  AppTask3      (void *p_arg);
-static  void  AppTask4      (void *p_arg);*/
-
+static  void  AppTask4      (void *p_arg);
+static  void  AppTask5      (void *p_arg);
+static  void  AppTask6      (void *p_arg);
+static  void  AppTask7      (void *p_arg);
+static  void  AppTask8      (void *p_arg);
 
 /*
 *********************************************************************************************************
@@ -102,6 +120,10 @@ int  main (void)
 
     OSInit(&err);                                               /* Init uC/OS-III.                                      */
     
+    OSSchedRoundRobinCfg((CPU_BOOLEAN)DEF_TRUE,
+                         (OS_TICK)    10,
+                         (OS_ERR*)    &err);
+
     if (err != OS_ERR_NONE) {
     }
     
@@ -172,11 +194,11 @@ static  void  AppTaskStart (void *p_arg)
 
     CPU_IntDisMeasMaxCurReset();
     
-    OSTaskCreate((OS_TCB     *)&AppTask1_TCB,                /* Create Task 01                                */
+    OSTaskCreate((OS_TCB     *)&AppTask1_TCB,                // Create Task 01 
                  (CPU_CHAR   *)"App Task 01",
                  (OS_TASK_PTR )AppTask1, 
                  (void       *)0,
-                 (OS_PRIO     )3,
+                 (OS_PRIO     )4,
                  (CPU_STK    *)&AppTask1_Stk[0],
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
@@ -186,7 +208,7 @@ static  void  AppTaskStart (void *p_arg)
                  (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
                  (OS_ERR     *)&err);
     
-    /*OSTaskCreate((OS_TCB     *)&AppTask2_TCB,                // Create Task 02                                
+    OSTaskCreate((OS_TCB     *)&AppTask2_TCB,                // Create Task 02                                
                  (CPU_CHAR   *)"App Task 02",
                  (OS_TASK_PTR )AppTask2, 
                  (void       *)0,
@@ -204,7 +226,7 @@ static  void  AppTaskStart (void *p_arg)
                  (CPU_CHAR   *)"App Task 03",
                  (OS_TASK_PTR )AppTask3, 
                  (void       *)0,
-                 (OS_PRIO     )5,
+                 (OS_PRIO     )4,
                  (CPU_STK    *)&AppTask3_Stk[0],
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
@@ -218,7 +240,7 @@ static  void  AppTaskStart (void *p_arg)
                  (CPU_CHAR   *)"App Task 04",
                  (OS_TASK_PTR )AppTask4, 
                  (void       *)0,
-                 (OS_PRIO     )6,
+                 (OS_PRIO     )4,
                  (CPU_STK    *)&AppTask4_Stk[0],
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
                  (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
@@ -226,7 +248,64 @@ static  void  AppTaskStart (void *p_arg)
                  (OS_TICK     )0,
                  (void       *)0,
                  (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
-                 (OS_ERR     *)&err);*/
+                 (OS_ERR     *)&err);
+    
+    OSTaskCreate((OS_TCB     *)&AppTask5_TCB,                // Create Task 05
+                 (CPU_CHAR   *)"App Task 05"
+                 (OS_TASK_PTR )AppTask5, 
+                 (void       *)0,
+                 (OS_PRIO     )5,
+                 (CPU_STK    *)&AppTask5_Stk[0],
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
+                 (OS_MSG_QTY  )0,
+                 (OS_TICK     )0,
+                 (void       *)0,
+                 (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+                 (OS_ERR     *)&err);
+
+    OSTaskCreate((OS_TCB     *)&AppTask6_TCB,                // Create Task 06
+                 (CPU_CHAR   *)"App Task 06",
+                 (OS_TASK_PTR )AppTask6, 
+                 (void       *)0,
+                 (OS_PRIO     )4,
+                 (CPU_STK    *)&AppTask6_Stk[0],
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
+                 (OS_MSG_QTY  )0,
+                 (OS_TICK     )0,
+                 (void       *)0,
+                 (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+                 (OS_ERR     *)&err);
+
+    OSTaskCreate((OS_TCB     *)&AppTask7_TCB,                // Create Task 07
+                 (CPU_CHAR   *)"App Task 07",
+                 (OS_TASK_PTR )AppTask7, 
+                 (void       *)0,
+                 (OS_PRIO     )3,
+                 (CPU_STK    *)&AppTask7_Stk[0],
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
+                 (OS_MSG_QTY  )0,
+                 (OS_TICK     )0,
+                 (void       *)0,
+                 (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+                 (OS_ERR     *)&err);
+  
+    OSTaskCreate((OS_TCB     *)&AppTask8_TCB,                // Create Task 08
+                 (CPU_CHAR   *)"App Task 08",
+                 (OS_TASK_PTR )AppTask8, 
+                 (void       *)0,
+                 (OS_PRIO     )6,
+                 (CPU_STK    *)&AppTask8_Stk[0],
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE / 10,
+                 (CPU_STK_SIZE)APP_TASK_START_STK_SIZE,
+                 (OS_MSG_QTY  )0,
+                 (OS_TICK     )0,
+                 (void       *)0,
+                 (OS_OPT      )(OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+                 (OS_ERR     *)&err);
+    
     
     BSP_LED_Off(0);
 
@@ -244,21 +323,38 @@ static  void  AppTaskStart (void *p_arg)
     
 }
 
+static  void  AppTask1      (void *p_arg)   //RFID
+{
+    OS_ERR      err;
+    p_arg = p_arg;
+    
+    while(DEF_ON) {
+
+    }
+}
  
-static void AppTask1        (void *p_arg)
+static void AppTask2        (void *p_arg)   //Proximity
 {
     OS_ERR        err;
     p_arg = p_arg;
     
     while(DEF_ON) {
-      //PROX_Check();
-      PIR_Check();
-      //OSTimeDlyHMSM(0, 0, 0, 50, OS_OPT_TIME_HMSM_STRICT, &err);
+      PROX_Check();
     }
 }
 
-/*
-static  void  AppTask1      (void *p_arg)
+
+static  void  AppTask3      (void *p_arg)   //Temperature
+{
+    OS_ERR      err;
+    p_arg = p_arg;
+    
+    while(DEF_ON) {
+
+    }
+}
+
+static  void  AppTask4      (void *p_arg)   //Sanitizer
 {
     OS_ERR      err;
     p_arg = p_arg;
@@ -269,7 +365,46 @@ static  void  AppTask1      (void *p_arg)
     }
 }
 
+static  void  AppTask5      (void *p_arg)   //Door
+{
+    OS_ERR      err;
+    p_arg = p_arg;
     
+    while(DEF_ON) {
+
+    }
+}
+
+static  void  AppTask6      (void *p_arg)   //PIR Sensor
+{
+    OS_ERR      err;
+    p_arg = p_arg;
+    
+    while(DEF_ON) {
+      PIR_Check();
+    }
+}
+
+static  void  AppTask7      (void *p_arg)   //Timer Task(20sec)
+{
+    OS_ERR      err;
+    p_arg = p_arg;
+    
+    while(DEF_ON) {
+
+    }
+}
+
+static  void  AppTask8      (void *p_arg)   //LCD Task
+{
+    OS_ERR      err;
+    p_arg = p_arg;
+    
+    while(DEF_ON) {
+
+    }
+}
+/*
 static  void  AppTask2      (void *p_arg)
 {
     OS_ERR      err;
