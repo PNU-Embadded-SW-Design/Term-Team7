@@ -128,10 +128,7 @@ int  main (void)
     if (err != OS_ERR_NONE) {
     }
 
-    OSSemCreate(&DoorSem,
-                "DoorSemaphore",
-                1,
-                &err);
+    
 
     OSTaskCreate((OS_TCB     *)&AppTaskStartTCB,                /* Create the start task                                */
                  (CPU_CHAR   *)"App Task Start",
@@ -183,7 +180,11 @@ static  void  AppTaskStart (void *p_arg)
 
    (void)p_arg;
 
-    OSSemCreate(&AppSem, "Test Sem", 0, &err);
+    //OSSemCreate(&AppSem, "Test Sem", 0, &err);
+    OSSemCreate(&DoorSem,
+                "DoorSemaphore",
+                1,
+                &err);
 
     BSP_Init();                                                   /* Initialize BSP functions                         */
     CPU_Init();                                                   /* Initialize the uC/CPU services                   */
@@ -256,7 +257,7 @@ static  void  AppTaskStart (void *p_arg)
                  (OS_ERR     *)&err);
     
     OSTaskCreate((OS_TCB     *)&AppTask5_TCB,                // Create Task 05
-                 (CPU_CHAR   *)"App Task 05"
+                 (CPU_CHAR   *)"App Task 05",
                  (OS_TASK_PTR )AppTask5, 
                  (void       *)0,
                  (OS_PRIO     )5,
@@ -372,19 +373,15 @@ static  void  AppTask5      (void *p_arg)   //Door
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
     
     while(DEF_ON) {
-      OSSemPend(&DoorSem,
-                0,
-                OS_OPT_PEND_BLOCKING,
-                &ts,
-                &err);
-      switch(err) {
+      
+      OSSemPend(&DoorSem, 0, OS_OPT_PEND_BLOCKING, &ts, &err);    //4번째 argument는 function option. 생략 가능하다면 생략.
+      switch(err) {                                             
         case OS_ERR_NONE:
             //door open function
-            OSTimeDlyHMSM(0,0,5,0                   //문 열리고 5초 딜레이
-                          OS_OPT_TIME_HMSM_STRICT, 
-                          &err);
+            OSTimeDlyHMSM(0, 0, 5, 0, OS_OPT_TIME_HMSM_STRICT, &err);   //문 열리고 5초 딜레이
             //door close function
             OSSemPost(&DoorSem,
                       OS_OPT_POST_1,
