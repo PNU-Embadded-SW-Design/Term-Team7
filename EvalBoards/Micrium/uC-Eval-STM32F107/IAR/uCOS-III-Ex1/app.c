@@ -50,7 +50,8 @@
 *********************************************************************************************************
 */
 
-static  OS_SEM   AppSem; 
+//static  OS_SEM   AppSem;
+static  OS_SEM   DoorSem;       //문 열고 닫을 때 사용하는 Semaphore
 
 static  OS_TCB   AppTaskStartTCB; 
 static  CPU_STK  AppTaskStartStk[APP_TASK_START_STK_SIZE];
@@ -126,8 +127,12 @@ int  main (void)
 
     if (err != OS_ERR_NONE) {
     }
-    
-    
+
+    OSSemCreate(&DoorSem,
+                "DoorSemaphore",
+                1,
+                &err);
+
     OSTaskCreate((OS_TCB     *)&AppTaskStartTCB,                /* Create the start task                                */
                  (CPU_CHAR   *)"App Task Start",
                  (OS_TASK_PTR )AppTaskStart, 
@@ -360,8 +365,6 @@ static  void  AppTask4      (void *p_arg)   //Sanitizer
     p_arg = p_arg;
     
     while(DEF_ON) {
-      BSP_LED_Toggle(1);
-      OSTimeDlyHMSM(0, 0, 4, 0, OS_OPT_TIME_HMSM_STRICT, &err);
     }
 }
 
@@ -371,6 +374,32 @@ static  void  AppTask5      (void *p_arg)   //Door
     p_arg = p_arg;
     
     while(DEF_ON) {
+      OSSemPend(&DoorSem,
+                0,
+                OS_OPT_PEND_BLOCKING,
+                &ts,
+                &err);
+      switch(err) {
+        case OS_ERR_NONE:
+            //door open function
+            OSTimeDlyHMSM(0,0,5,0                   //문 열리고 5초 딜레이
+                          OS_OPT_TIME_HMSM_STRICT, 
+                          &err);
+            //door close function
+            OSSemPost(&DoorSem,
+                      OS_OPT_POST_1,
+                      &err);
+            break;
+
+        case OS_ERR_PEND_ABORT:
+            break;
+        
+        case OS_ERR_OBJ_DEL:
+            break;
+        
+        default:
+            break;
+      }
 
     }
 }
