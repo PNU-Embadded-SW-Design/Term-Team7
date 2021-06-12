@@ -343,6 +343,7 @@ static void AppTask2        (void *p_arg)   //Proximity
 {
     OS_ERR        err;
     p_arg = p_arg;
+    CPU_INT08U    errCnt = 0;   //온도 측정 오류 횟수를 저장하는 변수
     
     while(DEF_ON) {
       PROX_Check();
@@ -369,8 +370,8 @@ static  void  AppTask4      (void *p_arg)   //Sanitizer
     }
 }
 
-static  void  AppTask5      (void *p_arg)   //Door
-{
+static  void  AppTask5      (void *p_arg)   //Door (외부에서 방역 절차를 끝냈을 때 문을 여는 함수)
+{                                           //     (내부에서 PIR을 통해 문을 여는 것은 따로 생성할지 미정)
     OS_ERR      err;
     p_arg = p_arg;
     CPU_TS  ts;
