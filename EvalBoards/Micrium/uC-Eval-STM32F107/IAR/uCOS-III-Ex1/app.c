@@ -52,26 +52,26 @@
 
 
 /* flag definition */
-#define ID_MISMATCH     (OS_FLAGS)0x0000;
-#define TIMEOUT         (OS_FLAGS)0x0001;
-#define TEMP_HIGH       (OS_FLAGS)0x0002;
-#define TEMP_NOT_BODY   (OS_FLAGS)0x0003;
-#define TEMP_REDO       (OS_FLAGS)0x0010;
-#define DISINF_DONE     (OS_FLAGS)0x0021;
-#define DOOR_OPEN       (OS_FLAGS)0x0022;
-OS_FLAG_GRP lcdFlgGrp;
+#define ID_MISMATCH     (OS_FLAGS)0x0000        //RFID 매칭 안됨
+#define TIMEOUT         (OS_FLAGS)0x0001        //타이머 시간초과(Task7)
+#define TEMP_HIGH       (OS_FLAGS)0x0002        //온도 : 고열
+#define TEMP_NOT_BODY   (OS_FLAGS)0x0003        //온도 : 신체가 아님(3회째)
+#define TEMP_REDO       (OS_FLAGS)0x0010        //온도 : 재측정(0~2회)
+#define DISINF_DONE     (OS_FLAGS)0x0021        //방역작업 완료, 아직 문이 안열림 ,대기
+#define DOOR_OPEN       (OS_FLAGS)0x0022        //문 열림, 입장
+OS_FLAG_GRP lcdFlgGrp;                          //LCD Task에 보낼 Message Flag
 
-#define PROX_DETECT     (OS_FLAGS)0x0101;
-#define TEMP_IS_BODY    (OS_FLAGS)0x0102;
-OS_FLAG_GRP SanCondFlgGrp; 
+#define PROX_DETECT     (OS_FLAGS)0x0101        //근접센서 감지
+#define TEMP_IS_BODY    (OS_FLAGS)0x0102        //인체가 맞음(정상 or 고열)
+OS_FLAG_GRP SanCondFlgGrp;                      //소독제 Task 작동 조건 Flag(Logical AND)
 
-#define PIR_DETECT      (OS_FLAGS)0x0201;
-#define TEMP_NORMAL     (OS_FLAGS)0x0202;
-OS_FLAG_GRP DoorOpenFlgGrp;
+#define PIR_DETECT      (OS_FLAGS)0x0201        //인체감지센서 감지
+#define TEMP_NORMAL     (OS_FLAGS)0x0202        //정상체온
+OS_FLAG_GRP DoorOpenFlgGrp;                     //문 열리는 조건 Flag(Logical OR)
 
-#define ID_MATCH        (OS_FLAGS)0x0301;
-#define PROX_DETECT_2   (OS_FLAGS)0x0302;
-OS_FLAG_GRP DisinfStepFlgGrp;
+#define ID_MATCH        (OS_FLAGS)0x0301        //RFID 매칭 성공
+#define PROX_DETECT_2   (OS_FLAGS)0x0302        //근접센서 감지(위의 근접센서와 구별하기 위한 숫자 2)
+OS_FLAG_GRP DisinfStepFlgGrp;                   //방역 절차 Flag
 
 
 //static  OS_SEM   AppSem;
@@ -371,7 +371,8 @@ static  void  AppTask1      (void *p_arg)   //RFID
     p_arg = p_arg;
     
     while(DEF_ON) {
-
+      //RFID_CHECK
+      
     }
 }
  
@@ -379,10 +380,33 @@ static void AppTask2        (void *p_arg)   //Proximity
 {
     OS_ERR        err;
     p_arg = p_arg;
+    CPU_TS  ts;
+    CPU_INT08U det = 0;         //감지 여부 저장하는 변수      
     CPU_INT08U    errCnt = 0;   //온도 측정 오류 횟수를 저장하는 변수
     
     while(DEF_ON) {
-      PROX_Check();
+      OSFlagPend(&DisinfStepFlgGrp,
+                 ID_MATCH,
+                 (OS_TICK)0,
+                 (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                 &ts,
+                 &err);
+      while(/*타이머가 끝나기 전까지*/ 1) {
+        det = PROX_Check();
+        if(det == 1)
+        {
+          OSFlagPost(&DisinfStepFlgGrp,
+                    PROX_DETECT_2,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
+          OSFlagPost(&SanCondFlgGrp,
+                    PROX_DETECT,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
+          break;
+          //타이머 세팅
+        }
+      }
     }
 }
 
@@ -391,8 +415,44 @@ static  void  AppTask3      (void *p_arg)   //Temperature
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
     
     while(DEF_ON) {
+      OSFlagPend(&DisinfStepFlgGrp,
+                 PROX_DETECT_2,
+                 (OS_TICK)0,
+                 (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                 &ts,
+                 &err);
+      //temp check
+      //if 정상
+      {
+        OSFlagPost(&SanCondFlgGrp,
+                  TEMP_IS_BODY,
+                  (OS_OPT)OS_OPT_POST_FLAG_SET,
+                  &err);
+        OSFlagPost(&DoorOpenFlgGrp,
+                  TEMP_NORMAL,
+                  (OS_OPT)OS_OPT_POST_FLAG_SET,
+                  &err);
+        
+      }
+      //else if 고열
+      {
+        OSFlagPost(&lcdFlgGrp,
+                  TEMP_HIGH,
+                  (OS_OPT)OS_OPT_POST_FLAG_SET,
+                  &err);
+        OSFlagPost(&SanCondFlgGrp,
+                  TEMP_IS_BODY,
+                  (OS_OPT)OS_OPT_POST_FLAG_SET,
+                  &err);
+      }
+      //else if 신체 아님
+      OSFlagPost(&lcdFlgGrp,
+                 TEMP_REDO,
+                 (OS_OPT)OS_OPT_POST_FLAG_SET,
+                 &err);
 
     }
 }
@@ -401,8 +461,16 @@ static  void  AppTask4      (void *p_arg)   //Sanitizer
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
     
     while(DEF_ON) {
+      OSFlagPend(&SanCondFlgGrp,
+                 PROX_DETECT + TEMP_IS_BODY,
+                 (OS_TICK)0,
+                 (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                 &ts,
+                 &err);
+      //소독제 분사
     }
 }
 
@@ -411,19 +479,32 @@ static  void  AppTask5      (void *p_arg)   //Door (외부에서 방역 절차�
     OS_ERR      err;
     p_arg = p_arg;
     CPU_TS  ts;
+    OS_FLAGS flag;
     
     while(DEF_ON) {
-      
+      flag = OSFlagPend(&DoorOpenFlgGrp,
+                        PIR_DETECT + TEMP_NORMAL,
+                        (OS_TICK) 0,
+                        (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                         &ts,
+                         &err);
       OSSemPend(&DoorSem, 0, OS_OPT_PEND_BLOCKING, &ts, &err);    //4번째 argument는 function option. 생략 가능하다면 생략.
       switch(err) {                                             
         case OS_ERR_NONE:
+          if(flag == PIR_DETECT) {
             //door open function
             OSTimeDlyHMSM(0, 0, 5, 0, OS_OPT_TIME_HMSM_STRICT, &err);   //문 열리고 5초 딜레이
             //door close function
-            OSSemPost(&DoorSem,
-                      OS_OPT_POST_1,
-                      &err);
-            break;
+          }
+          else if(flag == TEMP_NORMAL) {
+            //door open function
+            OSTimeDlyHMSM(0, 0, 10, 0, OS_OPT_TIME_HMSM_STRICT, &err);   //문 열리고 10초 딜레이
+            //door close function
+          }
+          OSSemPost(&DoorSem,
+                    OS_OPT_POST_1,
+                    &err);
+          break;
 
         case OS_ERR_PEND_ABORT:
             break;
@@ -442,9 +523,18 @@ static  void  AppTask6      (void *p_arg)   //PIR Sensor
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
+    CPU_INT08U det = 0; //감지 여부 저장하는 변수
     
     while(DEF_ON) {
-      PIR_Check();
+      det = PIR_Check();
+      
+      if(det == 1){             //PIR 감지되었을 때
+        OSFlagPost(&DoorOpenFlgGrp,
+                  PIR_DETECT,
+                  (OS_OPT)OS_OPT_POST_FLAG_SET,
+                  &err);
+      }
     }
 }
 
@@ -454,7 +544,10 @@ static  void  AppTask7      (void *p_arg)   //Timer Task(20sec)
     p_arg = p_arg;
     
     while(DEF_ON) {
-
+      //timer setting flag pend
+      //if time's up
+      //flag           
+                 
     }
 }
 
@@ -462,9 +555,32 @@ static  void  AppTask8      (void *p_arg)   //LCD Task
 {
     OS_ERR      err;
     p_arg = p_arg;
+    OS_FLAGS  flag;
+    CPU_TS  ts;
     
     while(DEF_ON) {
-
+      flag = OSFlagPend(&lcdFlgGrp,
+                        ID_MISMATCH + TIMEOUT + TEMP_HIGH + TEMP_NOT_BODY + TEMP_REDO + DISINF_DONE + DOOR_OPEN,
+                        (OS_TICK)0,
+                        (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                        &ts,
+                        &err);
+      //각 flag에 맞게 lcd에 화면 출력
+      if(flag == ID_MISMATCH) {
+        
+      }else if(flag == TIMEOUT) {
+        
+      }else if(flag == TEMP_HIGH) {
+        
+      }else if(flag == TEMP_NOT_BODY) {
+        
+      }else if(flag == TEMP_REDO) {
+        
+      }else if(flag == DISINF_DONE) {
+        
+      }else if(flag == DOOR_OPEN) {
+        
+      }
     }
 }
 /*

@@ -319,38 +319,30 @@ static void PIR_Init  (void)
       GPIO_Init(GPIOA, &gpio_init);
 }
 
-void PROX_Check (void)
+CPU_INT08U PROX_Check (void)
 {
     CPU_INT32U prox, led;
     
     prox = GPIO_ReadInputDataBit(GPIOC, BSP_GPIOC_PIN_04);
     led = GPIO_ReadOutputDataBit(GPIOD, BSP_GPIOD_LED1);
     if(prox) {  //detected
-      if(!led) {          //led is off
-        BSP_LED_On(1);    //turn on led
-      }
+      return (CPU_INT08U)1;
     }
     else {    //undetected
-      if(led) {           //led is on
-        BSP_LED_Off(1);   //turn off led
-      }
+      return (CPU_INT08U)0;
     }
 }
 
-void PIR_Check  (void)
+CPU_INT08U PIR_Check  (void)
 {
     CPU_INT32U pir, led;    
     pir = GPIO_ReadInputDataBit(GPIOA, BSP_GPIOA_PIN_04);
     led = GPIO_ReadOutputDataBit(GPIOD, BSP_GPIOD_LED2);
     if(pir) {  //detected
-      if(!led) {          //led is off
-        BSP_LED_On(2);    //turn on led
-      }
+      return (CPU_INT08U)1;
     }
     else {    //undetected
-      if(led) {           //led is on
-        BSP_LED_Off(2);   //turn off led
-      }
+      return (CPU_INT08U)0;
     }
 }
 

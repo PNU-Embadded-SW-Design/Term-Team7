@@ -354,9 +354,13 @@ CPU_INT32U   BSP_CPU_ClkFreq             (void);
 
 void         BSP_IntInit                 (void);
 
-static void PROX_Init                    (void);
+static void  PROX_Init                   (void);
 
-static void PIR_Init                     (void);
+CPU_INT08U   PROX_Check                  (void);
+
+static void  PIR_Init                    (void);
+
+CPU_INT08U   PIR_Check                   (void);
 
 void         BSP_IntEn                   (CPU_DATA       int_id);
 
