@@ -50,6 +50,30 @@
 *********************************************************************************************************
 */
 
+
+/* flag definition */
+#define ID_MISMATCH     (OS_FLAGS)0x0000;
+#define TIMEOUT         (OS_FLAGS)0x0001;
+#define TEMP_HIGH       (OS_FLAGS)0x0002;
+#define TEMP_NOT_BODY   (OS_FLAGS)0x0003;
+#define TEMP_REDO       (OS_FLAGS)0x0010;
+#define DISINF_DONE     (OS_FLAGS)0x0021;
+#define DOOR_OPEN       (OS_FLAGS)0x0022;
+OS_FLAG_GRP lcdFlgGrp;
+
+#define PROX_DETECT     (OS_FLAGS)0x0101;
+#define TEMP_IS_BODY    (OS_FLAGS)0x0102;
+OS_FLAG_GRP SanCondFlgGrp; 
+
+#define PIR_DETECT      (OS_FLAGS)0x0201;
+#define TEMP_NORMAL     (OS_FLAGS)0x0202;
+OS_FLAG_GRP DoorOpenFlgGrp;
+
+#define ID_MATCH        (OS_FLAGS)0x0301;
+#define PROX_DETECT_2   (OS_FLAGS)0x0302;
+OS_FLAG_GRP DisinfStepFlgGrp;
+
+
 //static  OS_SEM   AppSem;
 static  OS_SEM   DoorSem;       //문 열고 닫을 때 사용하는 Semaphore
 
@@ -81,6 +105,8 @@ static  CPU_STK  AppTask5_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask6_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask7_Stk[APP_TASK_START_STK_SIZE];
 static  CPU_STK  AppTask8_Stk[APP_TASK_START_STK_SIZE];
+
+
 
 /*
 *********************************************************************************************************
@@ -121,6 +147,16 @@ int  main (void)
 
     OSInit(&err);                                               /* Init uC/OS-III.                                      */
     
+    OSFlagCreate(&lcdFlgGrp,
+                "LCD Flag Group",
+                (OS_FLAGS)0,
+                &err);
+
+    OSFlagCreate(&SanCondFlgGrp,
+                "Sanitizer Condition Flag Group",
+                (OS_FLAGS)0,
+                &err);
+
     OSSchedRoundRobinCfg((CPU_BOOLEAN)DEF_TRUE,
                          (OS_TICK)    10,
                          (OS_ERR*)    &err);
