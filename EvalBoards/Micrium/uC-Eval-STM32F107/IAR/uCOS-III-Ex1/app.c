@@ -73,6 +73,8 @@ OS_FLAG_GRP DoorOpenFlgGrp;                     //문 열리는 조건 Flag(Logi
 #define PROX_DETECT_2   (OS_FLAGS)0x0302        //근접센서 감지(위의 근접센서와 구별하기 위한 숫자 2)
 OS_FLAG_GRP DisinfStepFlgGrp;                   //방역 절차 Flag
 
+#define TMRSET          (OS_FLAGS)0x0401        //20초 타이머 초기화 및 작동
+OS_FLAG_GRP TimerSetFlgGrp;                     //Task 7의 20초 타이머 세팅 Flag
 
 //static  OS_SEM   AppSem;
 static  OS_SEM   DoorSem;       //문 열고 닫을 때 사용하는 Semaphore
@@ -369,9 +371,21 @@ static  void  AppTask1      (void *p_arg)   //RFID
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
     
     while(DEF_ON) {
       //RFID_CHECK
+      //if 일치
+      {
+          OSFlagPost(&TimerSetFlgGrp,
+                    TMRSET,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
+          OSFlagPost(&DisinfStepFlgGrp,
+                    ID_MATCH,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
+      }
       
     }
 }
@@ -382,7 +396,6 @@ static void AppTask2        (void *p_arg)   //Proximity
     p_arg = p_arg;
     CPU_TS  ts;
     CPU_INT08U det = 0;         //감지 여부 저장하는 변수      
-    CPU_INT08U    errCnt = 0;   //온도 측정 오류 횟수를 저장하는 변수
     
     while(DEF_ON) {
       OSFlagPend(&DisinfStepFlgGrp,
@@ -391,6 +404,10 @@ static void AppTask2        (void *p_arg)   //Proximity
                  (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
                  &ts,
                  &err);
+      OSFlagPost(&TimerSetFlgGrp,
+                    TMRSET,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
       while(/*타이머가 끝나기 전까지*/ 1) {
         det = PROX_Check();
         if(det == 1)
@@ -416,6 +433,7 @@ static  void  AppTask3      (void *p_arg)   //Temperature
     OS_ERR      err;
     p_arg = p_arg;
     CPU_TS  ts;
+    CPU_INT08U    errCnt = 0;   //온도 측정 오류 횟수를 저장하는 변수
     
     while(DEF_ON) {
       OSFlagPend(&DisinfStepFlgGrp,
@@ -449,10 +467,22 @@ static  void  AppTask3      (void *p_arg)   //Temperature
                   &err);
       }
       //else if 신체 아님
-      OSFlagPost(&lcdFlgGrp,
-                 TEMP_REDO,
-                 (OS_OPT)OS_OPT_POST_FLAG_SET,
-                 &err);
+      {
+        errCnt++;
+        if(errCnt < 4) {
+            OSFlagPost(&lcdFlgGrp,
+                         TEMP_REDO,
+                         (OS_OPT)OS_OPT_POST_FLAG_SET,
+                         &err);
+        }
+        else if(errCnt >= 4) {
+            errCnt=0;
+            OSFlagPost(&lcdFlgGrp,
+                         TEMP_NOT_BODY,
+                         (OS_OPT)OS_OPT_POST_FLAG_SET,
+                         &err);
+        }
+      }
 
     }
 }
@@ -542,9 +572,16 @@ static  void  AppTask7      (void *p_arg)   //Timer Task(20sec)
 {
     OS_ERR      err;
     p_arg = p_arg;
+    CPU_TS  ts;
     
     while(DEF_ON) {
-      //timer setting flag pend
+      OSFlagPend(&TimerSetFlgGrp,
+                 TMRSET,
+                 (OS_TICK)0,
+                 (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                 &ts,
+                 &err);
+      //timer set
       //if time's up
       //flag           
                  
@@ -575,6 +612,12 @@ static  void  AppTask8      (void *p_arg)   //LCD Task
       }else if(flag == TEMP_NOT_BODY) {
         
       }else if(flag == TEMP_REDO) {
+          OSFlagPend(&DisinfStepFlgGrp,         //근접센서 작동을 위한 flag posting, 실제 ID_MATCH와는 관련 없음
+                 ID_MATCH,
+                 (OS_TICK)0,
+                 (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
+                 &ts,
+                 &err);
         
       }else if(flag == DISINF_DONE) {
         
