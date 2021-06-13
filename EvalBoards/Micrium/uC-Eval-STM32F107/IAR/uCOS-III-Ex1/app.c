@@ -386,7 +386,13 @@ static  void  AppTask1      (void *p_arg)   //RFID
                     (OS_OPT)OS_OPT_POST_FLAG_SET,
                     &err);
       }
-      
+      //if 불일치
+      {
+          OSFlagPost(&lcdFlgGrp,
+                    ID_MISMATCH,
+                    (OS_OPT)OS_OPT_POST_FLAG_SET,
+                    &err);
+      }
     }
 }
  
@@ -416,10 +422,10 @@ static void AppTask2        (void *p_arg)   //Proximity
                     PROX_DETECT_2,
                     (OS_OPT)OS_OPT_POST_FLAG_SET,
                     &err);
-          OSFlagPost(&SanCondFlgGrp,
+          /*OSFlagPost(&SanCondFlgGrp,
                     PROX_DETECT,
                     (OS_OPT)OS_OPT_POST_FLAG_SET,
-                    &err);
+                    &err);*/
           break;
           //타이머 세팅
         }
@@ -495,7 +501,7 @@ static  void  AppTask4      (void *p_arg)   //Sanitizer
     
     while(DEF_ON) {
       OSFlagPend(&SanCondFlgGrp,
-                 PROX_DETECT + TEMP_IS_BODY,
+                 TEMP_IS_BODY,
                  (OS_TICK)0,
                  (OS_OPT)OS_OPT_PEND_FLAG_SET_ANY,
                  &ts,
